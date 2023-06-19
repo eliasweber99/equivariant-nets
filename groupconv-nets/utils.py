@@ -1,7 +1,7 @@
 import torch
 import matplotlib.pyplot as plt
 
-def vertical_shift(img: torch.tensor, d: int = 1):
+def vertical_shift(img: torch.Tensor, d: int = 1):
     """
     Translates img by d along vertical axis
     Args:
@@ -17,7 +17,7 @@ def vertical_shift(img: torch.tensor, d: int = 1):
     shifted[...,-d:,:] = img[...,:d,:].detach().clone()
     return shifted
 
-def horizontal_shift(img: torch.tensor, d: int = 1):
+def horizontal_shift(img: torch.Tensor, d: int = 1):
     """
     input images must have spatial dimensions as last two dimensions
     """
