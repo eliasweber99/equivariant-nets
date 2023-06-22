@@ -16,11 +16,11 @@ def train(
     lr: float,
     train_loader: DataLoader, 
     val_loader: DataLoader, 
-    # continue_from: Optional[Tuple],
     *args,
     reg_str: float=.0, 
     reg_ord: int=1,
     tqdm = tqdm_n,
+    celeba = False,
     **kwargs
     ):
     """
@@ -33,6 +33,7 @@ def train(
         - val_loader: DataLoader for validation
         - reg_str(float): Regularization strength
         - reg_ord(int): Regularization order (L1 / L2)
+        - celeba (bool): wether the celeba dataset is being used
         - device: 
     """
     train_losses = []
@@ -40,6 +41,8 @@ def train(
     reg_losses = []
     train_acc = []
     val_acc = []
+
+    model.train()
     
     optimizer = optimizer(model.parameters(), lr=lr)
     device = model.device
@@ -52,7 +55,7 @@ def train(
         for x, y in train_loader:
             model.zero_grad()
             
-            x, y = x.to(device), y.to(device)
+            x, y = x.to(device), y.float().to(device)
 
             probs = model(x)
 
@@ -65,31 +68,32 @@ def train(
             optimizer.step()
 
             with torch.no_grad():
-                train_losses.append(crit_loss.item())
-                reg_losses.append(reg_loss.item())
-                preds = torch.argmax(probs, dim=-1)
-                train_acc.append((preds==y).float().mean())
+                train_losses.append(crit_loss.cpu().item())
+                reg_losses.append(reg_loss.cpu().item())
+                preds = torch.argmax(probs, dim=-1) if not celeba else torch.round(probs)
+                train_acc.append((preds==y).cpu().float().mean())
             train_bar.update()
         
         epoch_loss = 0
         epoch_acc = 0
         for x, y in val_loader:
-            x, y = x.to(device), y.to(device)
+            x, y = x.to(device), y.float().to(device)
             with torch.no_grad():
                 probs = model(x)
-                epoch_loss += criterion(probs, y)
-                preds = torch.argmax(probs, dim=-1)
-                epoch_acc += (preds==y).float().mean()
+                epoch_loss += criterion(probs, y).cpu()
+                preds = torch.argmax(probs, dim=-1) if not celeba else torch.round(probs)
+                epoch_acc += (preds==y).cpu().float().mean()
             val_bar.update()
         train_bar.close()
         val_bar.close()
         val_losses.append(epoch_loss/len(val_loader))
         val_acc.append(epoch_acc/len(val_loader))
         pbar.set_description(f'{100*val_acc[-1]:2.2f}%')
-    
-    return (torch.tensor(train_losses).cpu(), 
-            torch.tensor(reg_losses).cpu(),
-            torch.tensor(train_acc).cpu(), 
-            torch.tensor(val_losses).cpu(), 
-            torch.tensor(val_acc).cpu()
-           )
+    model.eval()
+    return (
+        torch.tensor(train_losses).cpu(), 
+        torch.tensor(reg_losses).cpu(),
+        torch.tensor(train_acc).cpu(), 
+        torch.tensor(val_losses).cpu(), 
+        torch.tensor(val_acc).cpu()
+    )
